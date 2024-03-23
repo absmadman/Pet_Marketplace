@@ -1,4 +1,4 @@
-package VK_Internship_Marketplace
+package main
 
 import (
 	"VK_Internship_Marketplace/db"
