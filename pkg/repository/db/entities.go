@@ -9,15 +9,15 @@ type User struct {
 }
 
 type Advert struct {
-	Id       int       `json:"id"`
-	UserId   int       `json:"user_id"`
-	AdvertId int       `json:"advert_id"`
-	Header   string    `json:"header"`
-	Text     string    `json:"text"`
-	ImageURL string    `json:"image_url"`
-	Address  string    `json:"address"`
-	Price    float64   `json:"price"`
-	Datetime time.Time `json:"datetime"`
+	Id         int       `json:"id"`
+	UserId     int       `json:"user_id"`
+	Header     string    `json:"header"`
+	Text       string    `json:"text"`
+	ImageURL   string    `json:"image_url"`
+	Address    string    `json:"address"`
+	Price      float64   `json:"price"`
+	Datetime   time.Time `json:"datetime"`
+	ByThisUser bool      `json:"by_this_user"`
 }
 
 type AdvList struct {

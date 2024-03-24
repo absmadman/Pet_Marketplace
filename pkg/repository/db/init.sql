@@ -6,12 +6,13 @@ CREATE TABLE users (
 
 CREATE TABLE adverts (
     id SERIAL,
-	user_id INT,
+		user_id INT,
     header VARCHAR(64),
     text VARCHAR(512),
     address VARCHAR(64),
     image_url VARCHAR(64),
-    price REAL
+    price REAL,
+		datetime TIMESTAMP
 );
 
 

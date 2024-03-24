@@ -3,9 +3,11 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"github.com/go-passwd/validator"
 	_ "github.com/lib/pq"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -22,6 +24,13 @@ func NewAdvert() *Advert{
 	return &Advert
 }
 */
+
+func (a *Advert) RemoveAdvert(db *sql.DB) error {
+	if _, err := db.Exec("DELETE FROM adverts WHERE id = $1", a.Id); err != nil {
+		return err
+	}
+	return nil
+}
 
 func CheckIdExist(db *sql.DB, login string) bool {
 	rows, err := db.Exec(getUserByLogin, login)
@@ -62,8 +71,10 @@ func (u *User) GetUser(db *sql.DB) error {
 }
 
 func (a *Advert) CreateAdvert(db *sql.DB) error {
-	_, err := db.Exec("INSERT INTO adverts (user_id, header, text, address, image_url, price, datetime) VALUES ($1, $2, $3, $4, $5, $6, $7)", a.UserId, a.Header, a.Text, a.Address, a.ImageURL, a.Price, time.Now())
-	log.Println(err)
+	splitTime := strings.Split(time.Now().String(), " ")
+	formattedTime := splitTime[0] + " " + splitTime[1]
+	err := db.QueryRow(fmt.Sprintf(insertAdvertWithIdReturn,
+		a.UserId, a.Header, a.Text, a.Address, a.ImageURL, a.Price, formattedTime)).Scan(&a.Id)
 	if err != nil {
 		return err
 	}
@@ -71,8 +82,14 @@ func (a *Advert) CreateAdvert(db *sql.DB) error {
 }
 
 func (a *Advert) ValidateAdvertData() bool {
-	textValidator := validator.New(validator.MinLength(8, nil), validator.MaxLength(512, nil), validator.ContainsOnly("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!_ /", nil))
-	otherValidator := validator.New(validator.MinLength(8, nil), validator.MaxLength(64, nil), validator.ContainsOnly("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!_ /", nil))
+	textValidator := validator.New(
+		validator.MinLength(8, nil),
+		validator.MaxLength(512, nil),
+		validator.ContainsOnly(AllowedSymbols, nil))
+	otherValidator := validator.New(
+		validator.MinLength(8, nil),
+		validator.MaxLength(64, nil),
+		validator.ContainsOnly(AllowedSymbols, nil))
 	err := textValidator.Validate(a.Text)
 	if err != nil {
 		return false
@@ -89,18 +106,21 @@ func (a *Advert) ValidateAdvertData() bool {
 	if err != nil {
 		return false
 	}
+	if a.Price < 1 || a.Price > 1000000 {
+		return false
+	}
 	return true
 }
 
 func (f *Filter) GetRows(db *sql.DB) (*sql.Rows, error) {
 	if !f.FromNewest {
-		rows, err := db.Query("SELECT id, user_id, header, text, address, image_url, price, datetime FROM adverts WHERE price >= $1 AND price <= $2 ORDER BY datetime", f.MinPrice, f.MaxPrice)
+		rows, err := db.Query(selectFromAdvertsAscending, f.MinPrice, f.MaxPrice)
 		if err != nil {
 			return nil, err
 		}
 		return rows, nil
 	} else {
-		rows, err := db.Query("SELECT id, user_id, header, text, address, image_url, price, datetime FROM adverts WHERE price >= $1 AND price <= $2 ORDER BY datetime DESC", f.MinPrice, f.MaxPrice)
+		rows, err := db.Query(selectFromAdvertsDescending, f.MinPrice, f.MaxPrice)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +128,7 @@ func (f *Filter) GetRows(db *sql.DB) (*sql.Rows, error) {
 	}
 }
 
-func (al *AdvList) GetAdvList(page int, db *sql.DB, filter *Filter) error {
+func (al *AdvList) GetAdvList(page int, db *sql.DB, filter *Filter, authUserId int) error {
 	rows, err := filter.GetRows(db)
 	if err != nil {
 		return err
@@ -118,12 +138,32 @@ func (al *AdvList) GetAdvList(page int, db *sql.DB, filter *Filter) error {
 	for rows.Next() {
 		var adv Advert
 		err = rows.Scan(&adv.Id, &adv.UserId, &adv.Header, &adv.Text, &adv.Address, &adv.ImageURL, &adv.Price, &adv.Datetime)
+		adv.ByThisUser = false
+		if authUserId == adv.UserId {
+			adv.ByThisUser = true
+		}
 		if err != nil {
 			break
 		}
 		if i >= stop-10 && i < stop {
 			al.List = append(al.List, &adv)
 		}
+		i++
+	}
+	return nil
+}
+
+func (a *Advert) GetAdv(db *sql.DB, advId int) error {
+	err := db.QueryRow(selectAdvertByAdvertId, advId).Scan(&a.Id,
+		&a.UserId,
+		&a.Header,
+		&a.Text,
+		&a.Address,
+		&a.ImageURL,
+		&a.Price,
+		&a.Datetime)
+	if err != nil {
+		return err
 	}
 	return nil
 }

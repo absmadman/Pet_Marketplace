@@ -3,16 +3,12 @@ package server
 import (
 	"VK_Internship_Marketplace/pkg/repository/db"
 	"database/sql"
-	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/go-passwd/validator"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 )
 
 type Token struct {
@@ -34,15 +30,6 @@ func NewHandler(engine *gin.Engine, db *sql.DB, redis *redis.Client) *Handler {
 	}
 }
 
-func isValid(pass string) bool {
-	valid := validator.New(validator.MinLength(8, nil), validator.MaxLength(36, nil), validator.ContainsOnly("1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!_", nil))
-	err := valid.Validate(pass)
-	if err != nil {
-		return false
-	}
-	return true
-}
-
 func (h *Handler) signUp(ctx *gin.Context) {
 	var user db.User
 	err := ctx.BindJSON(&user)
@@ -59,38 +46,7 @@ func (h *Handler) signUp(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
-	ctx.IndentedJSON(http.StatusOK, &user)
-}
-
-func createToken(u db.User) (string, error) {
-	tokenCfg := jwt.NewWithClaims(jwt.SigningMethodHS256, &Token{jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	},
-		u.Id,
-	})
-	token, err := tokenCfg.SignedString([]byte("dsajkfashfaklajhf13"))
-	if err != nil {
-		return "", err
-	}
-	return token, nil
-}
-
-func parseToken(token string) (int, error) {
-	parsedToken, err := jwt.ParseWithClaims(token, &Token{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid token")
-		}
-		return []byte("dsajkfashfaklajhf13"), nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	claims, ok := parsedToken.Claims.(*Token)
-	if !ok {
-		return 0, errors.New("invalid token")
-	}
-	return claims.Id, nil
+	ctx.IndentedJSON(http.StatusCreated, &user)
 }
 
 func (h *Handler) signIn(ctx *gin.Context) {
@@ -119,12 +75,12 @@ func (h *Handler) checkAuth(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "empty header"})
 		return
 	}
-	splitted := strings.Split(header, " ")
-	if len(splitted) != 2 {
+	splitToken := strings.Split(header, " ")
+	if len(splitToken) != 2 {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "error header format"})
 		return
 	}
-	claims, err := parseToken(splitted[1])
+	claims, err := parseToken(splitToken[1])
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "error parsing token"})
 		return
@@ -133,12 +89,12 @@ func (h *Handler) checkAuth(ctx *gin.Context) {
 }
 
 func (h *Handler) advList(ctx *gin.Context) { // to do
+	authUserId := h.GetIdByTokenIfExist(ctx)
 	var al db.AdvList
 	var filter db.Filter
-	param := ctx.Query("page")
-	page, err := strconv.Atoi(param)
+	page, err := getIntegerParam("page", ctx)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error parameter page"})
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
 		return
 	}
 	err = ctx.BindJSON(&filter)
@@ -146,7 +102,7 @@ func (h *Handler) advList(ctx *gin.Context) { // to do
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error filter parameters"})
 		return
 	}
-	err = al.GetAdvList(page, h.psql, &filter)
+	err = al.GetAdvList(page, h.psql, &filter, authUserId)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error database get"})
 		return
@@ -179,22 +135,72 @@ func (h *Handler) addAdvert(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, adv)
 }
 
+func (h *Handler) removeAdvert(ctx *gin.Context) {
+	var adv db.Advert
+	currUserId, ok := ctx.Get("UserID")
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+	advertId, err := getIntegerParam("advert_id", ctx)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
+		return
+	}
+	err = adv.GetAdv(h.psql, advertId)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "advert is not exist"})
+		return
+	}
+	if adv.UserId != currUserId.(int) {
+		ctx.JSON(http.StatusForbidden, gin.H{"message": "you dont have permissions"})
+		return
+	}
+	err = adv.RemoveAdvert(h.psql)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": err})
+		return
+	}
+	ctx.JSON(http.StatusOK, adv)
+}
+
+func (h *Handler) getAdvert(ctx *gin.Context) {
+	var adv db.Advert
+	authUserId := h.GetIdByTokenIfExist(ctx)
+	advId, err := getIntegerParam("advert_id", ctx)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
+		return
+	}
+	err = adv.GetAdv(h.psql, advId)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": err})
+		return
+	}
+	if authUserId == adv.UserId {
+		adv.ByThisUser = true
+	}
+	ctx.JSON(http.StatusOK, adv)
+}
+
+func (h *Handler) advFeed(ctx *gin.Context) {
+	ctx.JSON(http.StatusBadRequest, gin.H{"message": "adv feeding"})
+}
+
 func (h *Handler) HttpServer() {
 	auth := h.router.Group("/auth")
 	{
 		auth.POST("/register", h.signUp)
 		auth.POST("/login", h.signIn)
 	}
+	h.router.GET("/api/feed", h.advList)
+	h.router.GET("/api/advert", h.getAdvert)
 	adv := h.router.Group("/api", h.checkAuth)
 	{
-		adv.POST("/advert", h.addAdvert)
-		adv.POST("/feed", h.advList)
-		/*
-			list := h.router.Group(":page/list")
-			{
 
-			}
-		*/
+		adv.POST("/advert", h.addAdvert)
+		adv.DELETE("/advert", h.removeAdvert)
+		//adv.GET("/feed", h.advList)
 	}
 
 	err := h.router.Run("localhost:8080")
