@@ -63,6 +63,7 @@ func (u *User) GetUser(db *sql.DB) error {
 
 func (a *Advert) CreateAdvert(db *sql.DB) error {
 	_, err := db.Exec("INSERT INTO adverts (user_id, header, text, address, image_url, price, datetime) VALUES ($1, $2, $3, $4, $5, $6, $7)", a.UserId, a.Header, a.Text, a.Address, a.ImageURL, a.Price, time.Now())
+	log.Println(err)
 	if err != nil {
 		return err
 	}
@@ -91,9 +92,24 @@ func (a *Advert) ValidateAdvertData() bool {
 	return true
 }
 
-func (al *AdvList) GetAdvList(page int, db *sql.DB, fromNewest bool, minPrice float64, maxPrice float64) error {
-	rows, err := db.Query("SELECT id, user_id, header, text, address, image_url, price FROM adverts WHERE price >= $1 AND price <= $2", minPrice, maxPrice)
-	defer rows.Close()
+func (f *Filter) GetRows(db *sql.DB) (*sql.Rows, error) {
+	if !f.FromNewest {
+		rows, err := db.Query("SELECT id, user_id, header, text, address, image_url, price, datetime FROM adverts WHERE price >= $1 AND price <= $2 ORDER BY datetime", f.MinPrice, f.MaxPrice)
+		if err != nil {
+			return nil, err
+		}
+		return rows, nil
+	} else {
+		rows, err := db.Query("SELECT id, user_id, header, text, address, image_url, price, datetime FROM adverts WHERE price >= $1 AND price <= $2 ORDER BY datetime DESC", f.MinPrice, f.MaxPrice)
+		if err != nil {
+			return nil, err
+		}
+		return rows, nil
+	}
+}
+
+func (al *AdvList) GetAdvList(page int, db *sql.DB, filter *Filter) error {
+	rows, err := filter.GetRows(db)
 	if err != nil {
 		return err
 	}
@@ -101,7 +117,7 @@ func (al *AdvList) GetAdvList(page int, db *sql.DB, fromNewest bool, minPrice fl
 	stop := (page + 1) * 10
 	for rows.Next() {
 		var adv Advert
-		err = rows.Scan(&adv.Id, &adv.UserId, &adv.Header, &adv.Text, &adv.Address, &adv.ImageURL, &adv.Price)
+		err = rows.Scan(&adv.Id, &adv.UserId, &adv.Header, &adv.Text, &adv.Address, &adv.ImageURL, &adv.Price, &adv.Datetime)
 		if err != nil {
 			break
 		}
@@ -109,7 +125,6 @@ func (al *AdvList) GetAdvList(page int, db *sql.DB, fromNewest bool, minPrice fl
 			al.List = append(al.List, &adv)
 		}
 	}
-	log.Println(len(al.List))
 	return nil
 }
 

@@ -132,16 +132,21 @@ func (h *Handler) checkAuth(ctx *gin.Context) {
 	ctx.Set("UserID", claims)
 }
 
-func (h *Handler) AdvList(ctx *gin.Context) { // to do
-	//id, _ := ctx.Get("UserID")
-	page := ctx.Query("page")
-	pageid, err := strconv.Atoi(page)
+func (h *Handler) advList(ctx *gin.Context) { // to do
+	var al db.AdvList
+	var filter db.Filter
+	param := ctx.Query("page")
+	page, err := strconv.Atoi(param)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error parameter page"})
 		return
 	}
-	var al db.AdvList
-	err = al.GetAdvList(pageid, h.psql, true, 0, 1000)
+	err = ctx.BindJSON(&filter)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error filter parameters"})
+		return
+	}
+	err = al.GetAdvList(page, h.psql, &filter)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error database get"})
 		return
@@ -183,7 +188,7 @@ func (h *Handler) HttpServer() {
 	adv := h.router.Group("/api", h.checkAuth)
 	{
 		adv.POST("/advert", h.addAdvert)
-		adv.POST("/feed", h.AdvList)
+		adv.POST("/feed", h.advList)
 		/*
 			list := h.router.Group(":page/list")
 			{
