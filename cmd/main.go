@@ -1,9 +1,9 @@
 package main
 
 import (
+	"VK_Internship_Marketplace/internal/server"
 	"VK_Internship_Marketplace/pkg/repository/db"
 	"VK_Internship_Marketplace/pkg/repository/redis"
-	"VK_Internship_Marketplace/pkg/server"
 	"github.com/gin-gonic/gin"
 )
 
