@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-passwd/validator"
 	"github.com/golang-jwt/jwt/v5"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -76,6 +77,19 @@ func isValid(pass string) bool {
 		validator.ContainsOnly(db.AllowedSymbols, nil))
 	err := valid.Validate(pass)
 	if err != nil {
+		return false
+	}
+	return true
+}
+
+func (h *Handler) checkAdvertOwnership(ctx *gin.Context, adv *db.Advert, userId int, advertId int) bool {
+	err := adv.GetAdv(h.psql, advertId)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": "advert is not exist"})
+		return false
+	}
+	if adv.UserId != userId {
+		ctx.JSON(http.StatusForbidden, gin.H{"message": "you dont have permissions"})
 		return false
 	}
 	return true

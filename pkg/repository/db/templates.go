@@ -8,5 +8,6 @@ const (
 	selectFromAdvertsDescending = `SELECT id, user_id, header, text, address, image_url, price, datetime FROM adverts WHERE price >= $1 AND price <= $2 ORDER BY datetime DESC`
 	selectFromAdvertsAscending  = `SELECT id, user_id, header, text, address, image_url, price, datetime FROM adverts WHERE price >= $1 AND price <= $2 ORDER BY datetime`
 	selectAdvertByAdvertId      = `SELECT id, user_id, header, text, address, image_url, price, datetime FROM adverts WHERE id = $1`
+	updateAdvert                = `UPDATE adverts SET header = $1, text = $2, address = $3, image_url = $4, price = $5, datetime = $6 WHERE id = $7`
 	AllowedSymbols              = `1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!_ /`
 )

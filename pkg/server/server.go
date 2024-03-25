@@ -34,16 +34,16 @@ func (h *Handler) signUp(ctx *gin.Context) {
 	var user db.User
 	err := ctx.BindJSON(&user)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
 	if !isValid(user.Password) || !isValid(user.Login) {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid login or password"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid login or password"})
 		return
 	}
 	err = user.CreateUser(h.psql)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
 	ctx.IndentedJSON(http.StatusCreated, &user)
@@ -53,17 +53,17 @@ func (h *Handler) signIn(ctx *gin.Context) {
 	var user db.User
 	err := ctx.BindJSON(&user)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
 	err = user.GetUser(h.psql)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
 	token, err := createToken(user)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
 	ctx.IndentedJSON(http.StatusOK, &token)
@@ -72,18 +72,15 @@ func (h *Handler) signIn(ctx *gin.Context) {
 func (h *Handler) checkAuth(ctx *gin.Context) {
 	header := ctx.GetHeader("Authorization")
 	if header == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "empty header"})
-		return
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "empty header"})
 	}
 	splitToken := strings.Split(header, " ")
 	if len(splitToken) != 2 {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "error header format"})
-		return
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "error header format"})
 	}
 	claims, err := parseToken(splitToken[1])
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "error parsing token"})
-		return
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "error parsing token"})
 	}
 	ctx.Set("UserID", claims)
 }
@@ -94,17 +91,17 @@ func (h *Handler) advList(ctx *gin.Context) { // to do
 	var filter db.Filter
 	page, err := getIntegerParam("page", ctx)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
 		return
 	}
 	err = ctx.BindJSON(&filter)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error filter parameters"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error filter parameters"})
 		return
 	}
 	err = al.GetAdvList(page, h.psql, &filter, authUserId)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error database get"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error database get"})
 		return
 	}
 	ctx.IndentedJSON(http.StatusOK, al)
@@ -114,54 +111,49 @@ func (h *Handler) addAdvert(ctx *gin.Context) {
 	var adv db.Advert
 	err := ctx.BindJSON(&adv)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "error json"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error json"})
 		return
 	}
 	ok := adv.ValidateAdvertData()
 	if !ok {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid advert data"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid advert data"})
 		return
 	}
 	id, ok := ctx.Get("UserID")
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 		return
 	}
 	adv.UserId = id.(int)
 	if err = adv.CreateAdvert(h.psql); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "advert is not valid"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "advert is not valid"})
 		return
 	}
-	ctx.JSON(http.StatusOK, adv)
+	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
 func (h *Handler) removeAdvert(ctx *gin.Context) {
 	var adv db.Advert
 	currUserId, ok := ctx.Get("UserID")
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 		return
 	}
 	advertId, err := getIntegerParam("advert_id", ctx)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
 		return
 	}
-	err = adv.GetAdv(h.psql, advertId)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "advert is not exist"})
-		return
-	}
-	if adv.UserId != currUserId.(int) {
-		ctx.JSON(http.StatusForbidden, gin.H{"message": "you dont have permissions"})
+	ok = h.checkAdvertOwnership(ctx, &adv, currUserId.(int), advertId)
+	if !ok {
 		return
 	}
 	err = adv.RemoveAdvert(h.psql)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": err})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
-	ctx.JSON(http.StatusOK, adv)
+	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
 func (h *Handler) getAdvert(ctx *gin.Context) {
@@ -169,22 +161,48 @@ func (h *Handler) getAdvert(ctx *gin.Context) {
 	authUserId := h.GetIdByTokenIfExist(ctx)
 	advId, err := getIntegerParam("advert_id", ctx)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
 		return
 	}
 	err = adv.GetAdv(h.psql, advId)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": err})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
 	if authUserId == adv.UserId {
 		adv.ByThisUser = true
 	}
-	ctx.JSON(http.StatusOK, adv)
+	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
-func (h *Handler) advFeed(ctx *gin.Context) {
-	ctx.JSON(http.StatusBadRequest, gin.H{"message": "adv feeding"})
+func (h *Handler) updateAdvert(ctx *gin.Context) {
+	var adv db.Advert
+	currUserId, ok := ctx.Get("UserID")
+	if !ok {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+		return
+	}
+	advertId, err := getIntegerParam("advert_id", ctx)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
+		return
+	}
+	ok = h.checkAdvertOwnership(ctx, &adv, currUserId.(int), advertId)
+	if !ok {
+		return
+	}
+	err = ctx.BindJSON(&adv)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid advert data"})
+		return
+	}
+	adv.Id = advertId
+	err = adv.UpdateAdvert(h.psql)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error updating database"})
+		return
+	}
+	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
 func (h *Handler) HttpServer() {
@@ -197,9 +215,9 @@ func (h *Handler) HttpServer() {
 	h.router.GET("/api/advert", h.getAdvert)
 	adv := h.router.Group("/api", h.checkAuth)
 	{
-
 		adv.POST("/advert", h.addAdvert)
 		adv.DELETE("/advert", h.removeAdvert)
+		adv.PUT("/advert", h.updateAdvert)
 		//adv.GET("/feed", h.advList)
 	}
 

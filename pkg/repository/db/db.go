@@ -25,6 +25,15 @@ func NewAdvert() *Advert{
 }
 */
 
+func (a *Advert) UpdateAdvert(db *sql.DB) error {
+	_, err := db.Exec(updateAdvert, a.Header, a.Text, a.Address, a.ImageURL, a.Price, time.Now(), a.Id)
+	if err != nil {
+		return err
+	}
+	a.ByThisUser = true
+	return nil
+}
+
 func (a *Advert) RemoveAdvert(db *sql.DB) error {
 	if _, err := db.Exec("DELETE FROM adverts WHERE id = $1", a.Id); err != nil {
 		return err
