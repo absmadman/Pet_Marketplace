@@ -2,27 +2,20 @@ package server
 
 import (
 	"VK_Internship_Marketplace/pkg/repository/db"
-	"database/sql"
+	redis_pkg "VK_Internship_Marketplace/pkg/repository/redis"
+	jwttoken "VK_Internship_Marketplace/pkg/repository/token"
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/redis/go-redis/v9"
 	"log"
 	"net/http"
-	"strings"
 )
-
-type Token struct {
-	jwt.RegisteredClaims
-	Id int
-}
 
 type Handler struct {
 	router *gin.Engine
-	psql   *sql.DB
-	redis  *redis.Client
+	psql   *db.Database
+	redis  *redis_pkg.Redis
 }
 
-func NewHandler(engine *gin.Engine, db *sql.DB, redis *redis.Client) *Handler {
+func NewHandler(engine *gin.Engine, db *db.Database, redis *redis_pkg.Redis) *Handler {
 	return &Handler{
 		router: engine,
 		psql:   db,
@@ -41,7 +34,7 @@ func (h *Handler) signUp(ctx *gin.Context) {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid login or password"})
 		return
 	}
-	err = user.CreateUser(h.psql)
+	err = h.psql.CreateUser(&user)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
@@ -56,33 +49,32 @@ func (h *Handler) signIn(ctx *gin.Context) {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
-	err = user.GetUser(h.psql)
+	err = h.psql.GetUser(&user)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
-	token, err := createToken(user)
+	token, err := jwttoken.NewTokenFromId(user.Id)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
-	ctx.IndentedJSON(http.StatusOK, &token)
+	ctx.IndentedJSON(http.StatusOK, &token.Token)
 }
 
 func (h *Handler) checkAuth(ctx *gin.Context) {
-	header := ctx.GetHeader("Authorization")
-	if header == "" {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "empty header"})
+	token, err := jwttoken.NewTokenFromCtx(ctx)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "invalid token"})
 	}
-	splitToken := strings.Split(header, " ")
-	if len(splitToken) != 2 {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "error header format"})
-	}
-	claims, err := parseToken(splitToken[1])
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "error parsing token"})
 	}
-	ctx.Set("UserID", claims)
+	id, err := token.GetId()
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": err})
+	}
+	ctx.Set("UserID", id)
 }
 
 func (h *Handler) advList(ctx *gin.Context) { // to do
@@ -99,7 +91,7 @@ func (h *Handler) advList(ctx *gin.Context) { // to do
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error filter parameters"})
 		return
 	}
-	err = al.GetAdvList(page, h.psql, &filter, authUserId)
+	err = h.psql.GetAdvList(page, &al, &filter, authUserId)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error database get"})
 		return
@@ -125,7 +117,7 @@ func (h *Handler) addAdvert(ctx *gin.Context) {
 		return
 	}
 	adv.UserId = id.(int)
-	if err = adv.CreateAdvert(h.psql); err != nil {
+	if err = h.psql.CreateAdvert(&adv); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "advert is not valid"})
 		return
 	}
@@ -148,7 +140,7 @@ func (h *Handler) removeAdvert(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	err = adv.RemoveAdvert(h.psql)
+	err = h.psql.RemoveAdvert(&adv)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
 		return
@@ -164,7 +156,7 @@ func (h *Handler) getAdvert(ctx *gin.Context) {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
 		return
 	}
-	err = adv.GetAdv(h.psql, advId)
+	err = h.psql.GetAdv(&adv, advId)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
 		return
@@ -197,7 +189,7 @@ func (h *Handler) updateAdvert(ctx *gin.Context) {
 		return
 	}
 	adv.Id = advertId
-	err = adv.UpdateAdvert(h.psql)
+	err = h.psql.UpdateAdvert(&adv)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error updating database"})
 		return
@@ -218,7 +210,6 @@ func (h *Handler) HttpServer() {
 		adv.POST("/advert", h.addAdvert)
 		adv.DELETE("/advert", h.removeAdvert)
 		adv.PUT("/advert", h.updateAdvert)
-		//adv.GET("/feed", h.advList)
 	}
 
 	err := h.router.Run("localhost:8080")

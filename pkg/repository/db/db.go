@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+type Database struct {
+	connection *sql.DB
+}
+
 func NewUser(id int, login string, password string, token string) *User {
 	return &User{
 		Id:       id,
@@ -19,14 +23,8 @@ func NewUser(id int, login string, password string, token string) *User {
 	}
 }
 
-/*
-func NewAdvert() *Advert{
-	return &Advert
-}
-*/
-
-func (a *Advert) UpdateAdvert(db *sql.DB) error {
-	_, err := db.Exec(updateAdvert, a.Header, a.Text, a.Address, a.ImageURL, a.Price, time.Now(), a.Id)
+func (db *Database) UpdateAdvert(a *Advert) error {
+	_, err := db.connection.Exec(updateAdvert, a.Header, a.Text, a.Address, a.ImageURL, a.Price, time.Now(), a.Id)
 	if err != nil {
 		return err
 	}
@@ -34,15 +32,15 @@ func (a *Advert) UpdateAdvert(db *sql.DB) error {
 	return nil
 }
 
-func (a *Advert) RemoveAdvert(db *sql.DB) error {
-	if _, err := db.Exec("DELETE FROM adverts WHERE id = $1", a.Id); err != nil {
+func (db *Database) RemoveAdvert(a *Advert) error {
+	if _, err := db.connection.Exec("DELETE FROM adverts WHERE id = $1", a.Id); err != nil {
 		return err
 	}
 	return nil
 }
 
-func CheckIdExist(db *sql.DB, login string) bool {
-	rows, err := db.Exec(getUserByLogin, login)
+func (db *Database) CheckUserIdExist(login string) bool {
+	rows, err := db.connection.Exec(getUserByLogin, login)
 	if err != nil {
 		return true
 	}
@@ -56,33 +54,33 @@ func CheckIdExist(db *sql.DB, login string) bool {
 	return true
 }
 
-func (u *User) CreateUser(db *sql.DB) error {
-	if CheckIdExist(db, u.Login) {
+func (db *Database) CreateUser(u *User) error {
+	if db.CheckUserIdExist(u.Login) {
 		return errors.New("already exist")
 	}
-	_, err := db.Exec(insertUser, u.Login, u.Password)
+	_, err := db.connection.Exec(insertUser, u.Login, u.Password)
 	if err != nil {
 		return err
 	}
-	err = db.QueryRow(getUserByLogin, u.Login).Scan(&u.Id, &u.Login, &u.Password)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (u *User) GetUser(db *sql.DB) error {
-	err := db.QueryRow(getUserByLoginAndPass, u.Login, u.Password).Scan(&u.Id, &u.Login, &u.Password)
+	err = db.connection.QueryRow(getUserByLogin, u.Login).Scan(&u.Id, &u.Login, &u.Password)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (a *Advert) CreateAdvert(db *sql.DB) error {
+func (db *Database) GetUser(u *User) error {
+	err := db.connection.QueryRow(getUserByLoginAndPass, u.Login, u.Password).Scan(&u.Id, &u.Login, &u.Password)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (db *Database) CreateAdvert(a *Advert) error {
 	splitTime := strings.Split(time.Now().String(), " ")
 	formattedTime := splitTime[0] + " " + splitTime[1]
-	err := db.QueryRow(fmt.Sprintf(insertAdvertWithIdReturn,
+	err := db.connection.QueryRow(fmt.Sprintf(insertAdvertWithIdReturn,
 		a.UserId, a.Header, a.Text, a.Address, a.ImageURL, a.Price, formattedTime)).Scan(&a.Id)
 	if err != nil {
 		return err
@@ -121,15 +119,15 @@ func (a *Advert) ValidateAdvertData() bool {
 	return true
 }
 
-func (f *Filter) GetRows(db *sql.DB) (*sql.Rows, error) {
+func (db *Database) GetRows(f *Filter) (*sql.Rows, error) {
 	if !f.FromNewest {
-		rows, err := db.Query(selectFromAdvertsAscending, f.MinPrice, f.MaxPrice)
+		rows, err := db.connection.Query(selectFromAdvertsAscending, f.MinPrice, f.MaxPrice)
 		if err != nil {
 			return nil, err
 		}
 		return rows, nil
 	} else {
-		rows, err := db.Query(selectFromAdvertsDescending, f.MinPrice, f.MaxPrice)
+		rows, err := db.connection.Query(selectFromAdvertsDescending, f.MinPrice, f.MaxPrice)
 		if err != nil {
 			return nil, err
 		}
@@ -137,8 +135,8 @@ func (f *Filter) GetRows(db *sql.DB) (*sql.Rows, error) {
 	}
 }
 
-func (al *AdvList) GetAdvList(page int, db *sql.DB, filter *Filter, authUserId int) error {
-	rows, err := filter.GetRows(db)
+func (db *Database) GetAdvList(page int, al *AdvList, filter *Filter, authUserId int) error {
+	rows, err := db.GetRows(filter)
 	if err != nil {
 		return err
 	}
@@ -162,19 +160,27 @@ func (al *AdvList) GetAdvList(page int, db *sql.DB, filter *Filter, authUserId i
 	return nil
 }
 
-func (a *Advert) GetAdv(db *sql.DB, advId int) error {
-	err := db.QueryRow(selectAdvertByAdvertId, advId).Scan(&a.Id,
-		&a.UserId,
-		&a.Header,
-		&a.Text,
-		&a.Address,
-		&a.ImageURL,
-		&a.Price,
-		&a.Datetime)
+func (db *Database) GetAdv(a *Advert, advId int) error {
+	err := db.connection.QueryRow(selectAdvertByAdvertId, advId).
+		Scan(
+			&a.Id,
+			&a.UserId,
+			&a.Header,
+			&a.Text,
+			&a.Address,
+			&a.ImageURL,
+			&a.Price,
+			&a.Datetime)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func NewDatabase() *Database {
+	return &Database{
+		connection: NewDBConnection(),
+	}
 }
 
 func NewDBConnection() *sql.DB {

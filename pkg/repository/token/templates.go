@@ -1,4 +1,4 @@
-package server
+package jwttoken
 
 const (
 	signedString = "dsajkfashfaklajhf13"

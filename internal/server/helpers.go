@@ -2,14 +2,12 @@ package server
 
 import (
 	"VK_Internship_Marketplace/pkg/repository/db"
+	jwttoken "VK_Internship_Marketplace/pkg/repository/token"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-passwd/validator"
-	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"strconv"
-	"strings"
-	"time"
 )
 
 func getIntegerParam(paramName string, ctx *gin.Context) (int, error) {
@@ -25,50 +23,27 @@ func getIntegerParam(paramName string, ctx *gin.Context) (int, error) {
 }
 
 func (h *Handler) GetIdByTokenIfExist(ctx *gin.Context) int {
-	header := ctx.GetHeader("Authorization")
-	if header == "" {
-		return 0
-	}
-	splitToken := strings.Split(header, " ")
-	if len(splitToken) != 2 {
-		return 0
-	}
-	claims, err := parseToken(splitToken[1])
-	if err != nil {
-		return 0
-	}
-	return claims
-}
-
-func createToken(u db.User) (string, error) {
-	tokenCfg := jwt.NewWithClaims(jwt.SigningMethodHS256, &Token{jwt.RegisteredClaims{
-		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
-		IssuedAt:  jwt.NewNumericDate(time.Now()),
-	},
-		u.Id,
-	})
-	token, err := tokenCfg.SignedString([]byte(signedString))
-	if err != nil {
-		return "", err
-	}
-	return token, nil
-}
-
-func parseToken(token string) (int, error) {
-	parsedToken, err := jwt.ParseWithClaims(token, &Token{}, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("invalid token")
+	/*
+		var token *jwttoken.Token
+		header := ctx.GetHeader("Authorization")
+		if header == "" {
+			return 0
 		}
-		return []byte(signedString), nil
-	})
+		splitToken := strings.Split(header, " ")
+		if len(splitToken) != 2 {
+			return 0
+		}
+		claims, err := token.ParseToken(splitToken[1])
+	*/
+	token, err := jwttoken.NewTokenFromCtx(ctx)
 	if err != nil {
-		return 0, err
+		return 0
 	}
-	claims, ok := parsedToken.Claims.(*Token)
-	if !ok {
-		return 0, errors.New("invalid token")
+	id, err := token.GetId()
+	if err != nil {
+		return 0
 	}
-	return claims.Id, nil
+	return id
 }
 
 func isValid(pass string) bool {
@@ -83,7 +58,7 @@ func isValid(pass string) bool {
 }
 
 func (h *Handler) checkAdvertOwnership(ctx *gin.Context, adv *db.Advert, userId int, advertId int) bool {
-	err := adv.GetAdv(h.psql, advertId)
+	err := h.psql.GetAdv(adv, advertId)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "advert is not exist"})
 		return false

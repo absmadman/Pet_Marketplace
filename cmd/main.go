@@ -8,8 +8,8 @@ import (
 )
 
 func main() {
-	db := db.NewDBConnection()
-	redis := redis_pkg.NewRedisConnection()
-	handler := server.NewHandler(gin.Default(), db, redis)
+	psql := db.NewDatabase()
+	redis := redis_pkg.NewRedis()
+	handler := server.NewHandler(gin.Default(), psql, redis)
 	handler.HttpServer()
 }
