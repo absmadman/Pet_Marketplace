@@ -1,6 +1,7 @@
 package server
 
 import (
+	"VK_Internship_Marketplace/internal/entities"
 	"VK_Internship_Marketplace/pkg/repository/db"
 	redis_pkg "VK_Internship_Marketplace/pkg/repository/redis"
 	jwttoken "VK_Internship_Marketplace/pkg/repository/token"
@@ -24,7 +25,7 @@ func NewHandler(engine *gin.Engine, db *db.Database, redis *redis_pkg.Redis) *Ha
 }
 
 func (h *Handler) signUp(ctx *gin.Context) {
-	var user db.User
+	var user entities.User
 	err := ctx.BindJSON(&user)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
@@ -43,7 +44,7 @@ func (h *Handler) signUp(ctx *gin.Context) {
 }
 
 func (h *Handler) signIn(ctx *gin.Context) {
-	var user db.User
+	var user entities.User
 	err := ctx.BindJSON(&user)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
@@ -79,8 +80,8 @@ func (h *Handler) checkAuth(ctx *gin.Context) {
 
 func (h *Handler) advList(ctx *gin.Context) { // to do
 	authUserId := h.GetIdByTokenIfExist(ctx)
-	var al db.AdvList
-	var filter db.Filter
+	var al entities.AdvList
+	var filter entities.Filter
 	page, err := getIntegerParam("page", ctx)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
@@ -100,7 +101,7 @@ func (h *Handler) advList(ctx *gin.Context) { // to do
 }
 
 func (h *Handler) addAdvert(ctx *gin.Context) {
-	var adv db.Advert
+	var adv entities.Advert
 	err := ctx.BindJSON(&adv)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error json"})
@@ -125,7 +126,7 @@ func (h *Handler) addAdvert(ctx *gin.Context) {
 }
 
 func (h *Handler) removeAdvert(ctx *gin.Context) {
-	var adv db.Advert
+	var adv entities.Advert
 	currUserId, ok := ctx.Get("UserID")
 	if !ok {
 		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
@@ -149,26 +150,33 @@ func (h *Handler) removeAdvert(ctx *gin.Context) {
 }
 
 func (h *Handler) getAdvert(ctx *gin.Context) {
-	var adv db.Advert
+	var adv entities.Advert
 	authUserId := h.GetIdByTokenIfExist(ctx)
 	advId, err := getIntegerParam("advert_id", ctx)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
 		return
 	}
-	err = h.psql.GetAdv(&adv, advId)
-	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
-		return
+	cachedAdv, err := h.redis.GetFromCache(advId)
+	if err == nil {
+		adv = *cachedAdv
+	} else {
+		log.Println(err)
+		err = h.psql.GetAdv(&adv, advId)
+		if err != nil {
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
+			return
+		}
 	}
 	if authUserId == adv.UserId {
 		adv.ByThisUser = true
 	}
+	h.redis.AppendCache(adv.Id, &adv)
 	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
 func (h *Handler) updateAdvert(ctx *gin.Context) {
-	var adv db.Advert
+	var adv entities.Advert
 	currUserId, ok := ctx.Get("UserID")
 	if !ok {
 		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})

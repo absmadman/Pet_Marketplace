@@ -1,10 +1,10 @@
 package db
 
 import (
+	"VK_Internship_Marketplace/internal/entities"
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/go-passwd/validator"
 	_ "github.com/lib/pq"
 	"log"
 	"strings"
@@ -15,15 +15,7 @@ type Database struct {
 	connection *sql.DB
 }
 
-func NewUser(id int, login string, password string, token string) *User {
-	return &User{
-		Id:       id,
-		Login:    login,
-		Password: password,
-	}
-}
-
-func (db *Database) UpdateAdvert(a *Advert) error {
+func (db *Database) UpdateAdvert(a *entities.Advert) error {
 	_, err := db.connection.Exec(updateAdvert, a.Header, a.Text, a.Address, a.ImageURL, a.Price, time.Now(), a.Id)
 	if err != nil {
 		return err
@@ -32,7 +24,7 @@ func (db *Database) UpdateAdvert(a *Advert) error {
 	return nil
 }
 
-func (db *Database) RemoveAdvert(a *Advert) error {
+func (db *Database) RemoveAdvert(a *entities.Advert) error {
 	if _, err := db.connection.Exec("DELETE FROM adverts WHERE id = $1", a.Id); err != nil {
 		return err
 	}
@@ -54,7 +46,7 @@ func (db *Database) CheckUserIdExist(login string) bool {
 	return true
 }
 
-func (db *Database) CreateUser(u *User) error {
+func (db *Database) CreateUser(u *entities.User) error {
 	if db.CheckUserIdExist(u.Login) {
 		return errors.New("already exist")
 	}
@@ -69,7 +61,7 @@ func (db *Database) CreateUser(u *User) error {
 	return nil
 }
 
-func (db *Database) GetUser(u *User) error {
+func (db *Database) GetUser(u *entities.User) error {
 	err := db.connection.QueryRow(getUserByLoginAndPass, u.Login, u.Password).Scan(&u.Id, &u.Login, &u.Password)
 	if err != nil {
 		return err
@@ -77,7 +69,7 @@ func (db *Database) GetUser(u *User) error {
 	return nil
 }
 
-func (db *Database) CreateAdvert(a *Advert) error {
+func (db *Database) CreateAdvert(a *entities.Advert) error {
 	splitTime := strings.Split(time.Now().String(), " ")
 	formattedTime := splitTime[0] + " " + splitTime[1]
 	err := db.connection.QueryRow(fmt.Sprintf(insertAdvertWithIdReturn,
@@ -88,38 +80,7 @@ func (db *Database) CreateAdvert(a *Advert) error {
 	return nil
 }
 
-func (a *Advert) ValidateAdvertData() bool {
-	textValidator := validator.New(
-		validator.MinLength(8, nil),
-		validator.MaxLength(512, nil),
-		validator.ContainsOnly(AllowedSymbols, nil))
-	otherValidator := validator.New(
-		validator.MinLength(8, nil),
-		validator.MaxLength(64, nil),
-		validator.ContainsOnly(AllowedSymbols, nil))
-	err := textValidator.Validate(a.Text)
-	if err != nil {
-		return false
-	}
-	err = otherValidator.Validate(a.ImageURL)
-	if err != nil {
-		return false
-	}
-	err = otherValidator.Validate(a.Address)
-	if err != nil {
-		return false
-	}
-	err = otherValidator.Validate(a.Header)
-	if err != nil {
-		return false
-	}
-	if a.Price < 1 || a.Price > 1000000 {
-		return false
-	}
-	return true
-}
-
-func (db *Database) GetRows(f *Filter) (*sql.Rows, error) {
+func (db *Database) GetRows(f *entities.Filter) (*sql.Rows, error) {
 	if !f.FromNewest {
 		rows, err := db.connection.Query(selectFromAdvertsAscending, f.MinPrice, f.MaxPrice)
 		if err != nil {
@@ -135,7 +96,7 @@ func (db *Database) GetRows(f *Filter) (*sql.Rows, error) {
 	}
 }
 
-func (db *Database) GetAdvList(page int, al *AdvList, filter *Filter, authUserId int) error {
+func (db *Database) GetAdvList(page int, al *entities.AdvList, filter *entities.Filter, authUserId int) error {
 	rows, err := db.GetRows(filter)
 	if err != nil {
 		return err
@@ -143,7 +104,7 @@ func (db *Database) GetAdvList(page int, al *AdvList, filter *Filter, authUserId
 	i := 0
 	stop := (page + 1) * 10
 	for rows.Next() {
-		var adv Advert
+		var adv entities.Advert
 		err = rows.Scan(&adv.Id, &adv.UserId, &adv.Header, &adv.Text, &adv.Address, &adv.ImageURL, &adv.Price, &adv.Datetime)
 		adv.ByThisUser = false
 		if authUserId == adv.UserId {
@@ -160,7 +121,7 @@ func (db *Database) GetAdvList(page int, al *AdvList, filter *Filter, authUserId
 	return nil
 }
 
-func (db *Database) GetAdv(a *Advert, advId int) error {
+func (db *Database) GetAdv(a *entities.Advert, advId int) error {
 	err := db.connection.QueryRow(selectAdvertByAdvertId, advId).
 		Scan(
 			&a.Id,
