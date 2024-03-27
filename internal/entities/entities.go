@@ -33,9 +33,10 @@ type AdvList struct {
 
 // Filter структура для филтрации и сортировки ленты объявлений
 type Filter struct {
-	MinPrice   float64 `json:"min_price"`
-	MaxPrice   float64 `json:"max_price"`
-	FromNewest bool    `json:"from_newest"`
+	MinPrice           float64 `json:"min_price"`
+	MaxPrice           float64 `json:"max_price"`
+	ByPrice            bool    `json:"by_price"`
+	AscendingDirection bool    `json:"ascending_direction"`
 }
 
 // ValidateAdvertData валидатор для данных в объявлении

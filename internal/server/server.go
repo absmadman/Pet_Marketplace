@@ -174,7 +174,7 @@ func (h *Handler) getAdvert(ctx *gin.Context) {
 	} else {
 		err = h.db.GetAdv(&adv, advId)
 		if err != nil {
-			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
+			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "advert is not exist"})
 			return
 		}
 	}
@@ -223,7 +223,7 @@ func (h *Handler) HttpServer(cfg *config.Config) {
 	auth := h.router.Group("/auth")
 	{
 		auth.POST("/register", h.signUp)
-		auth.POST("/login", h.signIn)
+		auth.GET("/login", h.signIn)
 	}
 	h.router.GET("/api/feed", h.advList)
 	h.router.GET("/api/advert", h.getAdvert)

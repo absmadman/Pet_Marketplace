@@ -32,8 +32,8 @@ func NewRedisConnection(cfg *config.Config) *redis.Client {
 			DB:       0,
 		*/
 		Addr:     "redis_db:6379",
-		Password: "",
-		DB:       0,
+		Password: cfg.RedisPassword,
+		DB:       cfg.RedisDB,
 	})
 }
 

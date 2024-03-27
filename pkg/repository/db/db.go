@@ -84,24 +84,50 @@ func (db *Database) CreateAdvert(a *entities.Advert) error {
 	if err != nil {
 		return err
 	}
+	a.ByThisUser = true
 	return nil
 }
 
-// GetRows возвращает строки из бд в зависимости от параметров фильтрации
-func (db *Database) GetRows(f *entities.Filter) (*sql.Rows, error) {
-	if !f.FromNewest {
-		rows, err := db.connection.Query(selectFromAdvertsAscending, f.MinPrice, f.MaxPrice)
+// GetRowsByDate возвращает строки из бд отсортированные по дате
+func (db *Database) GetRowsByDate(f *entities.Filter) (*sql.Rows, error) {
+	if !f.AscendingDirection {
+		rows, err := db.connection.Query(selectFromAdvertsByDateAscending, f.MinPrice, f.MaxPrice)
 		if err != nil {
 			return nil, err
 		}
 		return rows, nil
 	} else {
-		rows, err := db.connection.Query(selectFromAdvertsDescending, f.MinPrice, f.MaxPrice)
+		rows, err := db.connection.Query(selectFromAdvertsByDateDescending, f.MinPrice, f.MaxPrice)
 		if err != nil {
 			return nil, err
 		}
 		return rows, nil
 	}
+}
+
+// GetRowsByPrice возвращает строки из бд отсортированные по цене
+func (db *Database) GetRowsByPrice(f *entities.Filter) (*sql.Rows, error) {
+	if f.AscendingDirection {
+		rows, err := db.connection.Query(selectFromAdvertsByPriceAscending, f.MinPrice, f.MaxPrice)
+		if err != nil {
+			return nil, err
+		}
+		return rows, nil
+	} else {
+		rows, err := db.connection.Query(selectFromAdvertsByPriceDescending, f.MinPrice, f.MaxPrice)
+		if err != nil {
+			return nil, err
+		}
+		return rows, nil
+	}
+}
+
+// GetRows возвращает строки из бд в зависимости от параметров фильтрации
+func (db *Database) GetRows(f *entities.Filter) (*sql.Rows, error) {
+	if f.ByPrice {
+		return db.GetRowsByPrice(f)
+	}
+	return db.GetRowsByDate(f)
 }
 
 // GetAdvList заполняет структуру AdvList которая хранит массив объявлений
