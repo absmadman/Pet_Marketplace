@@ -56,7 +56,7 @@ REST API проект в рамках VK Internship
         ```
 * /api
   * /advert
-    * GET с параметром advert_id(число)
+    * GET с параметром advert_id(число), этот запрос работает для авторизованных и неавторизованных пользователей
         * Например: 
         ```
         curl -X GET 'http://localhost:8080/api/advert?advert_id=1 
@@ -75,7 +75,7 @@ REST API проект в рамках VK Internship
           "by_this_user": false
         } 
         ```
-    * POST без параметров, принимает json с полями header, text, image_url, address, price:
+    * POST без параметров, принимает json с полями header, text, image_url, address, price, только для авторизованных пользователей
         * Например:
         ```
         curl -X POST http://localhost:8080/api/advert -H "Authorization: Bearer (токен_пользователя)" -H "Content-Type: application/json" -d
@@ -101,7 +101,7 @@ REST API проект в рамках VK Internship
           "by_this_user": true
         } 
         ```
-    * PUT с параметром advert_id а также json с полями которые следует обновить
+    * PUT с параметром advert_id а также json с полями которые следует обновить только для авторизованных и если объявление принадлежит этому пользователю
         * Например:
         ```
         curl -X PUT 'http://localhost:8080/api/advert?advert_id=1' -H "Authorization: Bearer (токен_пользователя) -H "Content-Type: application/json" -d
@@ -126,7 +126,7 @@ REST API проект в рамках VK Internship
           "by_this_user": true
         }
         ```
-    * DELETE с параметром advert_id 
+    * DELETE с параметром advert_id только для авторизованных и если объявление принадлежит этому пользователю
         * Например:
         ```
         curl -X DELETE 'http://localhost:8080/api/advert?advert_id=1' -H "Authorization: Bearer (токен_пользователя)" 
