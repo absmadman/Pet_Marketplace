@@ -31,6 +31,7 @@ func (db *Database) RemoveAdvert(a *entities.Advert) error {
 	if _, err := db.connection.Exec("DELETE FROM adverts WHERE id = $1", a.Id); err != nil {
 		return err
 	}
+	a.ByThisUser = true
 	return nil
 }
 
@@ -85,6 +86,7 @@ func (db *Database) CreateAdvert(a *entities.Advert) error {
 		return err
 	}
 	a.ByThisUser = true
+	a.Datetime = time.Now()
 	return nil
 }
 

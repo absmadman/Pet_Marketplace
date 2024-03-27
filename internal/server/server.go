@@ -79,7 +79,7 @@ func (h *Handler) checkAuth(ctx *gin.Context) {
 	}
 	id, err := token.GetId()
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": err})
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "invalid token"})
 	}
 	ctx.Set("UserID", id)
 }
@@ -148,6 +148,7 @@ func (h *Handler) removeAdvert(ctx *gin.Context) {
 	}
 	ok = h.checkAdvertOwnership(ctx, &adv, currUserId.(int), advertId)
 	if !ok {
+		ctx.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"message": "permission denied"})
 		return
 	}
 	err = h.db.RemoveAdvert(&adv)
