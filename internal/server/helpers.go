@@ -10,6 +10,7 @@ import (
 	"strconv"
 )
 
+// getIntegerParam возвращает целочисленный параметр по имени параметра из контекста
 func getIntegerParam(paramName string, ctx *gin.Context) (int, error) {
 	param := ctx.Query(paramName)
 	if param == "" {
@@ -22,6 +23,7 @@ func getIntegerParam(paramName string, ctx *gin.Context) (int, error) {
 	return intParam, nil
 }
 
+// GetIdByTokenIfExist если Token содержит id возвращает id иначе 0
 func (h *Handler) GetIdByTokenIfExist(ctx *gin.Context) int {
 	token, err := jwttoken.NewTokenFromCtx(ctx)
 	if err != nil {
@@ -34,6 +36,7 @@ func (h *Handler) GetIdByTokenIfExist(ctx *gin.Context) int {
 	return id
 }
 
+// isValid проверяет пароль на валидность
 func isValid(pass string) bool {
 	valid := validator.New(validator.MinLength(8, nil),
 		validator.MaxLength(36, nil),
@@ -45,8 +48,9 @@ func isValid(pass string) bool {
 	return true
 }
 
+// checkAdvertOwnership проверяет владеет ли текущий пользователь объявлением
 func (h *Handler) checkAdvertOwnership(ctx *gin.Context, adv *entities.Advert, userId int, advertId int) bool {
-	err := h.psql.GetAdv(adv, advertId)
+	err := h.db.GetAdv(adv, advertId)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "advert is not exist"})
 		return false

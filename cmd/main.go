@@ -9,7 +9,7 @@ import (
 
 func main() {
 	psql := db.NewDatabase()
-	redis := redis_pkg.NewRedis()
+	redis := redisPkg.NewRedis()
 	handler := server.NewHandler(gin.Default(), psql, redis)
 	handler.HttpServer()
 }

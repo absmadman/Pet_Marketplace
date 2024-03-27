@@ -6,12 +6,14 @@ import (
 	"time"
 )
 
+// User структура пользователя
 type User struct {
 	Id       int    `json:"id"`
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
+// Advert структура объявления
 type Advert struct {
 	Id         int       `json:"id"`
 	UserId     int       `json:"user_id"`
@@ -24,16 +26,19 @@ type Advert struct {
 	ByThisUser bool      `json:"by_this_user"`
 }
 
+// AdvList структура которая хранит массив объявлений
 type AdvList struct {
 	List []*Advert `json:"feed"`
 }
 
+// Filter структура для филтрации и сортировки ленты объявлений
 type Filter struct {
 	MinPrice   float64 `json:"min_price"`
 	MaxPrice   float64 `json:"max_price"`
 	FromNewest bool    `json:"from_newest"`
 }
 
+// ValidateAdvertData валидатор для данных в объявлении
 func (a *Advert) ValidateAdvertData() bool {
 	textValidator := validator.New(
 		validator.MinLength(8, nil),
@@ -65,14 +70,17 @@ func (a *Advert) ValidateAdvertData() bool {
 	return true
 }
 
+// MarshalBinary сериализует структуру Advert для Redis
 func (a *Advert) MarshalBinary() ([]byte, error) {
 	return json.Marshal(a)
 }
 
+// UnmarshalBinary десериализует массив byte в структуру Advert
 func (a *Advert) UnmarshalBinary(data []byte) error {
 	return json.Unmarshal(data, &a)
 }
 
+// NewUser конструктор для User
 func NewUser(id int, login string, password string, token string) *User {
 	return &User{
 		Id:       id,

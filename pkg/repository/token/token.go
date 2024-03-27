@@ -13,10 +13,12 @@ type ClaimsToken struct {
 	Id int
 }
 
+// Token структура для хранения jwt токена в формате строки
 type Token struct {
 	Token string
 }
 
+// NewTokenFromCtx получает токен из хедера и возвращает структуру Token
 func NewTokenFromCtx(ctx *gin.Context) (*Token, error) {
 	header := ctx.GetHeader("Authorization")
 	if header == "" {
@@ -29,6 +31,7 @@ func NewTokenFromCtx(ctx *gin.Context) (*Token, error) {
 	return &Token{Token: splitToken[1]}, nil
 }
 
+// NewTokenFromId создает токен из id и возвращает структуру Token
 func NewTokenFromId(id int) (*Token, error) {
 	tokenCfg := jwt.NewWithClaims(jwt.SigningMethodHS256, &ClaimsToken{jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
@@ -43,6 +46,7 @@ func NewTokenFromId(id int) (*Token, error) {
 	return &Token{Token: token}, nil
 }
 
+// GetId возвращает токен из структуры Token
 func (t *Token) GetId() (int, error) {
 	parsedToken, err := jwt.ParseWithClaims(t.Token, &ClaimsToken{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

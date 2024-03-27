@@ -15,6 +15,7 @@ type Database struct {
 	connection *sql.DB
 }
 
+// UpdateAdvert вызвает UPDATE запрос для объявления в базе данных
 func (db *Database) UpdateAdvert(a *entities.Advert) error {
 	_, err := db.connection.Exec(updateAdvert, a.Header, a.Text, a.Address, a.ImageURL, a.Price, time.Now(), a.Id)
 	if err != nil {
@@ -24,6 +25,7 @@ func (db *Database) UpdateAdvert(a *entities.Advert) error {
 	return nil
 }
 
+// RemoveAdvert удаляет объявление из базы данных по Id
 func (db *Database) RemoveAdvert(a *entities.Advert) error {
 	if _, err := db.connection.Exec("DELETE FROM adverts WHERE id = $1", a.Id); err != nil {
 		return err
@@ -31,6 +33,7 @@ func (db *Database) RemoveAdvert(a *entities.Advert) error {
 	return nil
 }
 
+// CheckUserIdExist проверяет существует ли login в бд
 func (db *Database) CheckUserIdExist(login string) bool {
 	rows, err := db.connection.Exec(getUserByLogin, login)
 	if err != nil {
@@ -46,6 +49,7 @@ func (db *Database) CheckUserIdExist(login string) bool {
 	return true
 }
 
+// CreateUser добавляет user'a в бд
 func (db *Database) CreateUser(u *entities.User) error {
 	if db.CheckUserIdExist(u.Login) {
 		return errors.New("already exist")
@@ -61,6 +65,7 @@ func (db *Database) CreateUser(u *entities.User) error {
 	return nil
 }
 
+// GetUser заполняет структуру User из бд
 func (db *Database) GetUser(u *entities.User) error {
 	err := db.connection.QueryRow(getUserByLoginAndPass, u.Login, u.Password).Scan(&u.Id, &u.Login, &u.Password)
 	if err != nil {
@@ -69,6 +74,7 @@ func (db *Database) GetUser(u *entities.User) error {
 	return nil
 }
 
+// CreateAdvert добавяет объявление в бд
 func (db *Database) CreateAdvert(a *entities.Advert) error {
 	splitTime := strings.Split(time.Now().String(), " ")
 	formattedTime := splitTime[0] + " " + splitTime[1]
@@ -80,6 +86,7 @@ func (db *Database) CreateAdvert(a *entities.Advert) error {
 	return nil
 }
 
+// GetRows возвращает строки из бд в зависимости от параметров фильтрации
 func (db *Database) GetRows(f *entities.Filter) (*sql.Rows, error) {
 	if !f.FromNewest {
 		rows, err := db.connection.Query(selectFromAdvertsAscending, f.MinPrice, f.MaxPrice)
@@ -96,6 +103,7 @@ func (db *Database) GetRows(f *entities.Filter) (*sql.Rows, error) {
 	}
 }
 
+// GetAdvList заполняет структуру AdvList которая хранит массив объявлений
 func (db *Database) GetAdvList(page int, al *entities.AdvList, filter *entities.Filter, authUserId int) error {
 	rows, err := db.GetRows(filter)
 	if err != nil {
@@ -121,6 +129,7 @@ func (db *Database) GetAdvList(page int, al *entities.AdvList, filter *entities.
 	return nil
 }
 
+// GetAdv производит select запрос в бд по id объявления
 func (db *Database) GetAdv(a *entities.Advert, advId int) error {
 	err := db.connection.QueryRow(selectAdvertByAdvertId, advId).
 		Scan(
@@ -138,12 +147,14 @@ func (db *Database) GetAdv(a *entities.Advert, advId int) error {
 	return nil
 }
 
+// NewDatabase конструктор для структуры Database
 func NewDatabase() *Database {
 	return &Database{
 		connection: NewDBConnection(),
 	}
 }
 
+// NewDBConnection создает подключение к базе данных postgresql
 func NewDBConnection() *sql.DB {
 	//pgPass := os.Getenv("POSTGRES_PASSWORD")
 	//pgUser := os.Getenv("POSTGRES_USER")

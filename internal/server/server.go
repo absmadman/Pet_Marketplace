@@ -3,27 +3,30 @@ package server
 import (
 	"VK_Internship_Marketplace/internal/entities"
 	"VK_Internship_Marketplace/pkg/repository/db"
-	redis_pkg "VK_Internship_Marketplace/pkg/repository/redis"
+	redisPkg "VK_Internship_Marketplace/pkg/repository/redis"
 	jwttoken "VK_Internship_Marketplace/pkg/repository/token"
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 )
 
+// Handler структура для работы эндпоинтов
 type Handler struct {
 	router *gin.Engine
-	psql   *db.Database
-	redis  *redis_pkg.Redis
+	db     *db.Database
+	redis  *redisPkg.Redis
 }
 
-func NewHandler(engine *gin.Engine, db *db.Database, redis *redis_pkg.Redis) *Handler {
+// NewHandler констуктор для Handler
+func NewHandler(engine *gin.Engine, db *db.Database, redis *redisPkg.Redis) *Handler {
 	return &Handler{
 		router: engine,
-		psql:   db,
+		db:     db,
 		redis:  redis,
 	}
 }
 
+// signUp метод выполняющий регистрацию пользователей последством занесения данных пользователя в базу данных
 func (h *Handler) signUp(ctx *gin.Context) {
 	var user entities.User
 	err := ctx.BindJSON(&user)
@@ -35,7 +38,7 @@ func (h *Handler) signUp(ctx *gin.Context) {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid login or password"})
 		return
 	}
-	err = h.psql.CreateUser(&user)
+	err = h.db.CreateUser(&user)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
@@ -43,6 +46,7 @@ func (h *Handler) signUp(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusCreated, &user)
 }
 
+// signIn метод выполняющий проверку полученных данных пользователя с данными из бызы данных
 func (h *Handler) signIn(ctx *gin.Context) {
 	var user entities.User
 	err := ctx.BindJSON(&user)
@@ -50,7 +54,7 @@ func (h *Handler) signIn(ctx *gin.Context) {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
 	}
-	err = h.psql.GetUser(&user)
+	err = h.db.GetUser(&user)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
 		return
@@ -63,6 +67,7 @@ func (h *Handler) signIn(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusOK, &token.Token)
 }
 
+// checkAuth метод проверяет авторизован ли пользователь и валидность jwt токена
 func (h *Handler) checkAuth(ctx *gin.Context) {
 	token, err := jwttoken.NewTokenFromCtx(ctx)
 	if err != nil {
@@ -78,10 +83,11 @@ func (h *Handler) checkAuth(ctx *gin.Context) {
 	ctx.Set("UserID", id)
 }
 
-func (h *Handler) advList(ctx *gin.Context) { // to do
-	authUserId := h.GetIdByTokenIfExist(ctx)
+// advList метод собирает список объявлений по заданным фильтрам
+func (h *Handler) advList(ctx *gin.Context) {
 	var al entities.AdvList
 	var filter entities.Filter
+	authUserId := h.GetIdByTokenIfExist(ctx)
 	page, err := getIntegerParam("page", ctx)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid parameter"})
@@ -92,7 +98,7 @@ func (h *Handler) advList(ctx *gin.Context) { // to do
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error filter parameters"})
 		return
 	}
-	err = h.psql.GetAdvList(page, &al, &filter, authUserId)
+	err = h.db.GetAdvList(page, &al, &filter, authUserId)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error database get"})
 		return
@@ -100,6 +106,7 @@ func (h *Handler) advList(ctx *gin.Context) { // to do
 	ctx.IndentedJSON(http.StatusOK, al)
 }
 
+// addAdvert метод парсит полученный json и заносит данные в базу данных, а также добавляет данные в кeш
 func (h *Handler) addAdvert(ctx *gin.Context) {
 	var adv entities.Advert
 	err := ctx.BindJSON(&adv)
@@ -118,13 +125,14 @@ func (h *Handler) addAdvert(ctx *gin.Context) {
 		return
 	}
 	adv.UserId = id.(int)
-	if err = h.psql.CreateAdvert(&adv); err != nil {
+	if err = h.db.CreateAdvert(&adv); err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "advert is not valid"})
 		return
 	}
 	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
+// removeAdvert удаляет объявление по id из базы данных и кeша
 func (h *Handler) removeAdvert(ctx *gin.Context) {
 	var adv entities.Advert
 	currUserId, ok := ctx.Get("UserID")
@@ -141,14 +149,16 @@ func (h *Handler) removeAdvert(ctx *gin.Context) {
 	if !ok {
 		return
 	}
-	err = h.psql.RemoveAdvert(&adv)
+	err = h.db.RemoveAdvert(&adv)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
 		return
 	}
+	h.redis.RemoveFromCache(adv.Id)
 	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
+// getAdvert возвращает объявление из кеша если они там есть, иначе из базы данных и добавляет их в кеш
 func (h *Handler) getAdvert(ctx *gin.Context) {
 	var adv entities.Advert
 	authUserId := h.GetIdByTokenIfExist(ctx)
@@ -161,8 +171,7 @@ func (h *Handler) getAdvert(ctx *gin.Context) {
 	if err == nil {
 		adv = *cachedAdv
 	} else {
-		log.Println(err)
-		err = h.psql.GetAdv(&adv, advId)
+		err = h.db.GetAdv(&adv, advId)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
 			return
@@ -175,6 +184,7 @@ func (h *Handler) getAdvert(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
+// updateAdvert обновляет объялвение в базе данных и в кеше
 func (h *Handler) updateAdvert(ctx *gin.Context) {
 	var adv entities.Advert
 	currUserId, ok := ctx.Get("UserID")
@@ -197,14 +207,17 @@ func (h *Handler) updateAdvert(ctx *gin.Context) {
 		return
 	}
 	adv.Id = advertId
-	err = h.psql.UpdateAdvert(&adv)
+	err = h.db.UpdateAdvert(&adv)
 	if err != nil {
 		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error updating database"})
 		return
 	}
+	h.redis.RemoveFromCache(adv.Id)
+	h.redis.AppendCache(adv.Id, &adv)
 	ctx.IndentedJSON(http.StatusOK, adv)
 }
 
+// HttpServer описание эндпоинтов
 func (h *Handler) HttpServer() {
 	auth := h.router.Group("/auth")
 	{
