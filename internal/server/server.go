@@ -32,7 +32,7 @@ func (h *Handler) signUp(ctx *gin.Context) {
 	var user entities.User
 	err := ctx.BindJSON(&user)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error json data"})
 		return
 	}
 	if !isValid(user.Password) || !isValid(user.Login) {
@@ -41,7 +41,7 @@ func (h *Handler) signUp(ctx *gin.Context) {
 	}
 	err = h.db.CreateUser(&user)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "user already exist"})
 		return
 	}
 	ctx.IndentedJSON(http.StatusCreated, &user)
@@ -52,17 +52,17 @@ func (h *Handler) signIn(ctx *gin.Context) {
 	var user entities.User
 	err := ctx.BindJSON(&user)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "invalid credentials"})
 		return
 	}
 	err = h.db.GetUser(&user)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error"})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "user is not exist"})
 		return
 	}
 	token, err := jwttoken.NewTokenFromId(user.Id)
 	if err != nil {
-		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": err})
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "error tokenization"})
 		return
 	}
 	ctx.IndentedJSON(http.StatusOK, &token.Token)
@@ -148,7 +148,7 @@ func (h *Handler) removeAdvert(ctx *gin.Context) {
 	}
 	ok = h.checkAdvertOwnership(ctx, &adv, currUserId.(int), advertId)
 	if !ok {
-		ctx.AbortWithStatusJSON(http.StatusBadGateway, gin.H{"message": "permission denied"})
+		ctx.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "permission denied"})
 		return
 	}
 	err = h.db.RemoveAdvert(&adv)
