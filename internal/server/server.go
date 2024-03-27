@@ -1,6 +1,7 @@
 package server
 
 import (
+	"VK_Internship_Marketplace/config"
 	"VK_Internship_Marketplace/internal/entities"
 	"VK_Internship_Marketplace/pkg/repository/db"
 	redisPkg "VK_Internship_Marketplace/pkg/repository/redis"
@@ -218,7 +219,7 @@ func (h *Handler) updateAdvert(ctx *gin.Context) {
 }
 
 // HttpServer описание эндпоинтов
-func (h *Handler) HttpServer() {
+func (h *Handler) HttpServer(cfg *config.Config) {
 	auth := h.router.Group("/auth")
 	{
 		auth.POST("/register", h.signUp)
@@ -233,7 +234,7 @@ func (h *Handler) HttpServer() {
 		adv.PUT("/advert", h.updateAdvert)
 	}
 
-	err := h.router.Run("localhost:8080")
+	err := h.router.Run(cfg.ServerAddress + ":" + cfg.ServerPort)
 	if err != nil {
 		log.Println(err)
 	}

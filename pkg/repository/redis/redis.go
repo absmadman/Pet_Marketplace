@@ -1,6 +1,7 @@
 package redisPkg
 
 import (
+	"VK_Internship_Marketplace/config"
 	"VK_Internship_Marketplace/internal/entities"
 	"context"
 	"encoding/json"
@@ -10,20 +11,27 @@ import (
 )
 
 type Redis struct {
-	redis *redis.Client
+	redis           *redis.Client
+	storingDuration time.Duration
 }
 
 // NewRedis констуктор для структуры Redis
-func NewRedis() *Redis {
+func NewRedis(cfg *config.Config) *Redis {
 	return &Redis{
-		redis: NewRedisConnection(),
+		redis:           NewRedisConnection(cfg),
+		storingDuration: time.Minute * time.Duration(cfg.RedisStoringDuration),
 	}
 }
 
 // NewRedisConnection создает подключение к Redis хранилищу
-func NewRedisConnection() *redis.Client {
+func NewRedisConnection(cfg *config.Config) *redis.Client {
 	return redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		/*
+			Addr:     "localhost:6379",
+			Password: "",
+			DB:       0,
+		*/
+		Addr:     "redis_db:6379",
 		Password: "",
 		DB:       0,
 	})
@@ -35,7 +43,7 @@ func (r *Redis) AppendCache(id int, a *entities.Advert) {
 	if err != nil {
 		return
 	}
-	r.redis.Set(context.Background(), string(id), bytes, time.Minute*30)
+	r.redis.Set(context.Background(), string(id), bytes, r.storingDuration)
 }
 
 // GetFromCache вытаскивает данные из Redis по id и десеарилизует их в структуру Advert

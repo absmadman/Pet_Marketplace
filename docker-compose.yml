@@ -12,3 +12,24 @@ services:
     volumes:
       - ./pkg/repository/db/pgdata:/var/lib/postgresql/data
       - ./pkg/repository/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+  redis_db:
+    image: redis:7
+    container_name: redis-db
+    restart: unless-stopped
+    volumes:
+      - ./pkg/repository/redis/data:/data
+      - ./pkg/repository/redis/redis.conf:/usr/local/etc/redis
+    ports:
+      - "6379:6379"
+  server:
+    container_name: server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    image: server:latest
+    links:
+      - postgres
+      - redis_db
+    env_file: .env
