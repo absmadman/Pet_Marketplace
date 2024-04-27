@@ -1,9 +1,6 @@
-# VK_Internship_Marketplace
-REST API проект в рамках VK Internship 
-
 # Быстрый старт
 Для быстрого старта вам нужно иметь установленный Docker и docker-compose, перейти в корневую \
-папку проекта(VK_Internship_Marketplace) и выполнить команду `make docker-compose-api`, проект развернется \
+папку проекта и выполнить команду `make docker-compose-api`, проект развернется \
 и будет принимать запросы по адресу `localhost:8080`
 
 # Установка и запуск
